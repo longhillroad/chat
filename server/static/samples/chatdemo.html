@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<!--
+Public domain -- no warranty is offered or implied; use this code at your own risk.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tinode chat demo v. 0.2</title>
+<!-- Compiled and minified bootstrap CSS -->
+<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+<!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+<script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+<![endif]-->
+<!-- jQuery (necessary for Bootstrap's JavaScript plugins) -->
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.0/jquery.min.js"></script>
+<!-- Bootstrap js -->
+<script src="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+<!-- Tinode javascript library, minified version. Tinode has no extrenal dependencies. -->
+<script type="text/javascript" src="../js/tinode-0.2.min.js"></script>
+<style type="text/css">
+	body, html {
+		height:100%;
+		width:100%;
+    overflow:hidden;
+  }
+	body {
+		padding:1em;
+		font-size:10pt;
+	}
+	pre.log {
+		font-size:10pt;
+		line-height:1.25em;
+		padding:0.25em;
+		height:40em;
+		max-height:40em;
+	}
+  .scrollable {
+    overflow-y: scroll;
+  }
+  .max-height {
+  	height: 100%;
+  }
+  .max-width {
+  	width: 100%;
+  }
+  .no-overflow {
+  	overflow: hidden;
+  }
+	
+	span.white {
+		color: white;
+	}
+	span.black {
+		color: black;
+	}
+	
+	.dropdown-menu-form {
+		padding: 0.25em 0.5em 0;
+		max-height: 10em;
+		overflow-y: scroll;
+	}
+	.contacts {
+		list-style: none;
+		margin:0;
+		padding:0;
+		max-height:40em;
+	}
+	.contacts ul {
+		margin:0;
+		padding:0;
+	}
+	.contacts li.contact :hover {
+		background:#f0f0f3;
+	}
+	.contacts .contact-body {
+		padding: 0.5em;
+		padding-left: 1.75em;	
+	}
+	.contacts li.contact .pull-left {
+		margin-top:0.5em;
+	}	
+	.contacts .online {
+		color: #093;
+	}
+	
+	.chat {
+		list-style:none;
+		margin: 0;
+		padding: 0;
+	}
+	
+	#chatFlow {
+		max-height:30em;
+		overflow: auto
+	}
+	
+	.chat li {
+		margin-bottom: 0.25em;
+	  padding: 0.25em;
+	  border-bottom: 1px dotted #999;
+	}
+	.chat li.left .chat-body {
+		margin-left: 1.75em;
+	}
+	.chat li.right .chat-body {
+		margin-right: 1.75em;
+	}
+	.chat li.right .chat-user {
+		color:#093;
+	}
+	.chat li.left .chat-user {
+		color:#06C;
+	}	
+</style>
+<script type="text/javascript">
+$(function() {
+// Generate your own API key
+var APIKEY = "AQEAAAABAAEAAFLV81SGyZcs2_Ja2DBGBS22PgFd"
+// Change this URL to point to your messaging server
+var ENDPOINT = "http://localhost/"
+
+// Fix for hidden form elements
+$("#loginSettingsPanel").hide().removeClass("hidden")
+$("#loginError").hide().removeClass("hidden")
+$("#contactsPanel").hide().removeClass("hidden")
+$("#chatPanel").hide().removeClass("hidden")
+
+// BAsic tgime formatter
+function _getTimeStr() {
+	var now = new Date()
+	var hh = now.getHours();
+	var mm = now.getMinutes();
+	var ss = now.getSeconds();
+	if (hh < 10) { hh = "0" + hh }
+	if (mm < 10) { mm = "0" + mm }
+	if (ss < 10) { ss = "0" + ss }
+	return hh + ":" + mm + ":" + ss
+}
+
+function _timeSince(date) {
+	    var seconds = Math.floor((new Date() - date) / 1000);
+			
+	    var interval = Math.floor(seconds / 31536000);			
+	    if (interval > 1) {
+	        return interval + " years";
+	    }
+	    interval = Math.floor(seconds / 2592000);
+	    if (interval > 1) {
+	        return interval + " months";
+	    }
+	    interval = Math.floor(seconds / 86400);
+	    if (interval > 1) {
+	        return interval + " days";
+	    }
+	    interval = Math.floor(seconds / 3600);
+	    if (interval > 1) {
+	        return interval + " hours";
+	    }
+	    interval = Math.floor(seconds / 60);
+	    if (interval > 1) {
+	        return interval + " minutes";
+	    }
+	    return Math.floor(seconds) + " seconds";
+}
+
+// Logging
+function logger(msg) {
+	var log = $("#log")
+	var d = log[0]
+	log.prepend("<b>[" + _getTimeStr() + "]</b> " + msg + "\n")
+	d.scrollTop = 0
+}
+
+function insert_contact(cont) {
+	var id = "cont" + cont.contactId
+	var flag = "flag" + cont.contactId
+	if (!($("#" + id).length)) {
+		var name = cont.name || "<i>Anonymous</i>"
+		var status = cont.status || "<i>not set</i>"
+		var html = '\
+		<li class="contact" id="' + id + '">\
+		  <span class="pull-left">\
+		    <span class="glyphicon glyphicon-user"></span>\
+			</span>\
+			<div class="contact-body">\
+				<h5 class="list-group-item-heading">' + name + ' \
+					<span class="pull-right hidden" id="' + flag + '"><span class="glyphicon glyphicon-flag"></span></span></h5>\
+		  	<p class="list-group-item-text">' + status + '</p>\
+			</div>\
+		</li>'
+		$(html).appendTo(".contacts")
+		$("#" + flag).hide().removeClass("hidden")
+	}
+}
+
+// Do processing after loggin in
+function after_login() {
+	$("#loginPanel").hide()
+	$("#contactsPanel").show()
+	Tinode.rest.Get(Tinode.rest.request()
+		.addKind("users")
+		.addObjectId("me"), function(code, data) {
+			if (code == 200) {
+				$("#current-user-name").text(data.name)
+				$("#current-user-status").text(data.status)
+			}
+			logger("(" + code + "): " + JSON.stringify(data))
+		}
+	)
+	Tinode.contacts.Load(function(count) {
+		if (count > 0) {
+			Tinode.contacts.iterate(function(cont) {
+				insert_contact(cont)
+				logger(cont.id + ":" + cont.name)
+			})
+		}
+		Tinode.streaming.Subscribe(Tinode.TOPIC_ME, null)
+		Tinode.streaming.Subscribe(Tinode.TOPIC_PRES, null)
+	})
+}
+
+function insert_chat_message(msg, when, isMe, otherName) {
+	var html
+	var time = _timeSince(when)
+	if (isMe) {
+		html ='<li class="left clearfix">\
+			<span class="chat-user pull-left">\
+				<big><span class="glyphicon glyphicon-user"></span></big>\
+		  </span>\
+			<div class="chat-body clearfix">\
+				<div class="header">\
+					<strong class="primary-font">me</strong> <small class="pull-right text-muted">\
+						<span class="glyphicon glyphicon-time"></span> '+ time +' ago</small>\
+				</div>\
+				<p>' + msg.content + '</p>\
+			</div>\
+		</li>'
+	} else {
+		html = '<li class="right clearfix">\
+			<span class="chat-user pull-right">\
+				<big><span class="glyphicon glyphicon-user"></span></big>\
+			</span>\
+			<div class="chat-body clearfix">\
+				<div class="header">\
+					<small class=" text-muted"><span class="glyphicon glyphicon-time"></span> ' + time + ' ago</small>\
+						<strong class="pull-right primary-font">' + otherName + '</strong>\
+					</div>\
+					<p>' + msg.content + '</p>\
+				</div>\
+			</li>'
+	}
+	$(html).appendTo("#chatFlow")
+	scrollToLastMessage()
+}
+
+// Management of the logger window height
+//$('#log').height(function(index, height) {
+//	return window.innerHeight - 30;
+//});
+//$(window).resize(function() { 
+//	$("#log").height(window.innerHeight - 30);
+//});
+
+function init() {
+	// TODO(gene): remove the baseUrl parameter
+	Tinode.init(APIKEY, $("#baseUrl").val()) // baseUrl is available during debugging only
+	var transport = $("input:radio[name=transport]:checked" ).val();
+	Tinode.streaming.init(transport)
+	Tinode.streaming.setEcho($("#requestEcho").is(":checked"))
+	Tinode.streaming.wantAkn(true)
+	Tinode.logToConsole(true)
+	Tinode.streaming.onMessage = logger
+	Tinode.streaming.onDataMessage = function(data) {
+		if (data.topic === $("#chatCurrentTopic").val()) {
+			var userName = $("#chatUserName").text()
+			insert_chat_message(data, new Date(), (data.origin === Tinode.getCurrentUserID()), userName)
+		} else if (data.topic.indexOf(Tinode.TOPIC_P2P) === 0) {
+			logger("Flag user " + data.origin + " as [message received]")
+		}
+	}
+	Tinode.streaming.onConnect = function(code, text, params) {
+		if (code >= 200 && code < 300) {
+			logger("connected " + text + "; " + JSON.stringify(params))
+			var login = $("#username").val()
+			var pass = $("#password").val()
+			Tinode.streaming.Login(login, pass)
+		} else {
+			logger("connect failed: (" + code + ") " + text)
+		}
+	}
+	Tinode.streaming.onDisconnect = function() {
+		$("#loginButton").prop("disabled", false);
+		$("#loginSettingsPanel").hide()
+		$("#contactsPanel").hide()
+		$("#loginPanel").show()
+		logger("disconnected")
+	}
+	Tinode.streaming.onLogin = function(code, text) {
+		if (code >= 200 && code < 300) {
+			after_login()
+		} else {
+			logger("login failed: (" + code + ") " + text)
+			$("#loginButton").prop("disabled", false);
+		}
+	}
+	Tinode.streaming.onPresenceChange = function(who, cont) {
+		var contact = $("#cont" + who)
+		if (contact) {
+			var user = contact.find(".glyphicon-user")
+			if (cont.online) {
+				user.addClass("online")
+			} else {
+				user.removeClass("online")
+			}
+			contact.find("p").text(cont.status)
+		}
+	}
+	Tinode.streaming.onCtrlMessage = function(ctrl) {
+		if (ctrl.topic == "!me") {
+			// Flag contacts with unread messages
+			for (var idx in ctrl.params.topicsUpdated) {
+				var upd = ctrl.params.topicsUpdated[idx]
+				if (upd.topic.indexOf(Tinode.TOPIC_P2P) === 0) {
+					$("#flag" + upd.topic.substring(Tinode.TOPIC_P2P.length)).show()
+				}
+			}
+		}
+	}
+	
+	Tinode.rest.init()
+	Tinode.contacts.init()
+}
+
+// Default initialization
+init()
+
+$(".dropdown-menu").on("click", function(e) {
+	if($(this).hasClass("dropdown-menu-form")) {
+  	e.stopPropagation()
+	}
+})
+
+// Login pannel
+
+// User asks to show login settings panel
+$("#loginConfigButton").on("click", function(e) {
+	$("#loginPanel").hide()
+	$("#loginSettingsPanel").show()
+})
+
+// Hide login pannel
+$("#loginConfigCancelButton").on("click", function(e) {
+	$("#loginSettingsPanel").hide()
+	$("#loginPanel").show()
+})
+
+// Connect and login
+$("#loginButton").on("click", function(e) {
+	try {
+		$("#loginButton").prop("disabled", true);
+		Tinode.streaming.Connect(false)
+	} catch (ex) {
+		logger(ex)
+	}
+	return false
+});
+
+// Login settings pannel
+
+// Reinitialize Tinode and Tinode.streaming
+$("#loginSettings").on("submit", function(e) {
+	// Re-initialize Tinode with new parameters
+	init()
+	$("#loginSettingsPanel").hide()
+	$("#loginPanel").show()
+	return false
+})
+
+// Just switch back to Login panel
+$("#loginSettingsCancel").on("click", function(e) {
+	$("#loginSettingsPanel").hide()
+	$("#loginPanel").show()
+})
+
+// Contacts panel
+// Click on a contact -- start chat
+$(document).on("click", ".contact", function(e) {
+	// id looks like contXXXX, snip 'cont':
+	var id = e.currentTarget.id.substring(4)
+	// Clear the unread messages flag
+	$("#flag" + id).hide()
+	// Get contact details from cache
+	var cont = Tinode.contacts.get(id)
+	var name = cont.name || "Anonymous"	
+	$("#chatUserName").text(cont.name)
+	var topic = Tinode.TOPIC_P2P + id
+	$("#chatCurrentTopic").val(topic)
+	$("#chatPanel").show()
+	// Reload content for the new message
+	$("#chatFlow").empty()
+	loadAndShowMessages(topic, name)
+})
+
+$("#groupChatButton").on("click", function(e) {
+	var topicName = $("#topicName").val()
+	if (topicName) {
+		logger("Start group chat on a topic: "  + topicName)
+		$("#chatUserName").text("Group chat: " + topicName)
+		$("#chatPanel").show()
+		$("#chatFlow").empty()
+		loadAndShowMessages(topic, "other user")
+	}
+})
+
+// Chat panel
+function send_message() {
+	var msg = $("#chatInput").val()
+	var topic = 	$("#chatCurrentTopic").val()
+	if (msg && topic) {
+		logger("Send to " + topic + ": " + msg)
+		Tinode.streaming.Publish(topic, null, msg)
+	}
+	$("#chatInput").val("")
+}
+// Send chat message
+$("#chatSendButton").on("click", function(e) {
+	send_message()
+})
+
+// Reaction to Enter
+var current_focus_id
+$(":input").focus(function () {
+	current_focus_id = this.id;
+})
+$(document).keypress(function(e) {
+	if(e.keyCode == 13) {
+		if (current_focus_id === "chatInput") {
+			send_message()
+		}
+  }
+})
+
+function scrollToLastMessage() {
+	var el = $("#chatFlow")[0]
+	$("#chatFlow").scrollTop(Math.max(0, el.scrollHeight - el.clientHeight))
+}
+
+function loadAndShowMessages(topic) {
+	var limit = 7
+	var offset = 0
+	var cont
+	var otherName
+	Tinode.messages.Load(topic, limit, offset, function(code, messages) {
+		var count = Object.keys(messages).length
+		if (count > 0) {
+			var myId = Tinode.getCurrentUserID()
+			var loadMore = (count > 6)
+			var start = Math.min(6, count - 1)
+			for (var idx = start; idx>=0; idx--) {
+				var msg = messages[idx]
+				cont = Tinode.contacts.get(msg.data.origin)
+				if (cont && cont.name) {
+					otherName = cont.name
+				} else {
+					otherName = "Anonymous"
+				}
+				insert_chat_message(msg.data, Date.parse(msg.createdAt), (msg.data.origin === myId), otherName)
+				logger("Msg[" + idx + "]: " + JSON.stringify(msg))
+			}
+		}
+	})
+}
+	
+})
+</script>
+</head>
+<body>
+<div class="container max-width max-height">
+<div class="row">
+<div class="col-md-12">
+	<h3>Tinode chat demo</h3>
+</div>
+</div>
+<div class="row">
+<div class="col-md-2">
+	<div class="panel panel-primary" id="loginPanel">
+	  <div class="panel-heading">
+	    <h5 class="panel-title">Connect and login
+			<div class="pull-right">
+			  <button class="btn btn-default btn-xs" type="button" id="loginConfigButton">
+			    &nbsp;<span class="glyphicon glyphicon-cog"></span>&nbsp;
+			  </button>
+			</div>
+			</h5>
+	  </div>
+	  <div class="panel-body">
+			<h5 id="loginError" class="hidden"><span class="label label-danger">Error!</span> <span id="errorBody"></span></h5>
+			<form role="form" id="login">
+			  <div class="form-group">
+			    <input type="text" class="form-control" id="username" placeholder="User name (alice, bob, ... frank)">
+			  </div>
+			  <div class="form-group">
+			    <input type="password" class="form-control" id="password" placeholder="Password">
+			  </div>
+			  <button type="submit" class="btn btn-primary" id="loginButton">Login</button>
+			</form>
+	  </div>
+	</div>
+	<div class="panel panel-primary hidden" id="loginSettingsPanel">
+	  <div class="panel-heading">
+	    <h5 class="panel-title">Settings
+			<div class="pull-right">
+			  <button class="btn btn-default btn-xs" type="button" id="loginConfigCancelButton">
+			    &nbsp;<span class="glyphicon glyphicon-cog"></span>&nbsp;
+			  </button>
+			</div>
+			</h5>
+	  </div>
+	  <div class="panel-body">
+			<form role="form" id="loginSettings">
+			  <div class="form-group">
+			    <label for="baseUrl">Base URL</label>
+			    <input type="url" class="form-control" id="baseUrl" value="http://localhost/">
+			  </div>
+				<div class="form-group">
+					<label>Streaming transport:</label>
+					<div class="radio">
+		  			<label>
+		    			<input type="radio" name="transport" id="transport_default" value="default" checked>
+		    			Default
+		  			</label>
+					</div>
+					<div class="radio">
+		  			<label>
+		    			<input type="radio" name="transport" id="transport_websocket" value="ws">
+		    			Force websocket
+		  			</label>
+					</div>
+					<div class="radio">
+		  			<label>
+		    			<input type="radio" name="transport" id="transport_longpoll" value="lp">
+		    			Force long polling
+		  			</label>
+					</div>
+				</div>
+	  		<div class="checkbox">
+	    		<label>
+	      		<input type="checkbox" id="requestAkn" checked> Aknowledgements
+	    		</label>
+	  		</div>
+	  		<div class="checkbox">
+	    		<label>
+	      		<input type="checkbox" id="requestEcho" checked> Echo packets
+	    		</label>
+	  		</div>
+			  <button type="submit" class="btn btn-primary">OK</button>
+				<button type="button" class="btn btn-default" id="loginSettingsCancel">Cancel</button>
+			</form>
+	  </div>
+	</div>
+	<div class="panel panel-primary hidden" id="contactsPanel">
+		<div class="panel-heading">
+			<span class="pull-left" href="#">
+				<span class="glyphicon glyphicon-user"></span>
+			</span>
+			<span style="margin-left:1.0em;"><big id="current-user-name">User Name</big></span>
+			<div class="pull-right">
+			<button class="btn btn-default btn-xs" type="button" id="contactsConfigButton">
+				&nbsp;<span class="glyphicon glyphicon-cog"></span>&nbsp;
+			</button>
+			</div>
+			<p class="list-group-item-text" style="margin-left:1.75em;" id="current-user-status">user status</p>
+		</div>		
+		<div class="panel-body">
+			<ul class="contacts">
+			  <li>Start group chat:
+					<div class="input-group">
+				 		<input type="text" class="form-control" id="topicName" placeholder="Chat token">
+				    <span class="input-group-btn">
+				      <button class="btn btn-primary" type="button" id="groupChatButton">
+				      	<span class="glyphicon glyphicon-plus-sign"></span>
+				      </button>
+				    </span>
+			    </div>
+				</li>
+				<!-- contacts are inserted here -->
+			</ul>
+		</div>
+	</div>
+</div><!-- /col-md-2 -->
+<div class="col-md-2">
+	<!-- panel shown after user logs in -->
+	<div class="panel panel-primary hidden" id="chatPanel">
+		<div class="panel-heading">
+			<span class="glyphicon glyphicon-user"></span> &nbsp;<span id="chatUserName">User Name</span>
+		</div>
+		<div class="panel-body">
+			<ul class="chat" id="chatFlow">
+				<!-- chat messages are inserted here -->
+	    </ul>
+	  </div>
+    <div class="panel-footer">
+			<div class="input-group">
+				<input id="chatCurrentTopic" type="hidden" />
+				<input id="chatInput" type="text" class="form-control input-sm" placeholder="Type your message here..." />
+				<span class="input-group-btn">
+					<button class="btn btn-primary btn-sm" id="chatSendButton">
+						<span class="glyphicon glyphicon-send"></span>
+					</button>
+        </span>
+      </div>
+    </div>
+	</div>
+</div>
+<div class="col-md-4">
+	<h4>Activity log</h4>
+	<pre class="scrollable log" id="log">
+not connected</pre>
+</div><!-- col-md- -->
+</div><!-- row -->
+<div class="row">
+	<div class="col-md-12">UI created with <a href="http://getbootstrap.com/">Bootstrap</a> &amp; <a href="http://jquery.com/">jQuery</a>. Tinode has no external dependencies.</div>
+</div>
+</div><!-- container -->
+</body>
+</html>

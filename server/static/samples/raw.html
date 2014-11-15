@@ -1,0 +1,389 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<!--
+Public domain -- no warranty is offered or implied; use this code at your own risk.
+-->
+<html>
+	<head>
+		<title>
+			Tinode tester
+		</title>
+		<script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js">
+</script>
+		<script type="text/javascript" src="../js/tinode-0.1.js">
+</script>
+		<script type="text/javascript">
+$(function() {
+
+	var conn;
+
+	var msg = $("#msg");
+	var log = $("#log");
+	var raw = $("#raw");
+	var contacts = $("#contacts");
+
+	function appendLog(msg) {
+		var d = log[0]
+		var doScroll = d.scrollTop == d.scrollHeight - d.clientHeight;
+		msg.appendTo(log)
+		if (doScroll) {
+			d.scrollTop = d.scrollHeight - d.clientHeight;
+		}
+	}
+
+	function logger(str) {
+		appendLog($("<div>" + str + "<\/div>"))
+	}
+
+	function is_raw() {
+		return raw.is(':checked')
+	}
+
+
+	function raw_message(data) {
+		if (is_raw()) {
+						appendLog($("<div/>").text(data))
+		}
+	}
+
+	function ctrl_message(ctrl) {
+		if (!is_raw()) {
+			str = "Simon says (" + ctrl.code + "): " + ctrl.text
+			if (ctrl.params) {
+				str += " " + JSON.stringify(ctrl.params)
+			}
+			logger(str)
+		}
+	}
+
+	function cont_message(data) {
+		if (!is_raw()) {
+			logger(data.topic + " says: " + JSON.stringify(data.content))
+		}
+	}
+
+	function contact_html(user, online) {
+		userName = user.name
+		if (!userName) {
+			userName = user.contactId
+		}
+		return (online ? "&bull;" : "&times;") + " " + userName
+	}
+	
+	function contact_change(id, user) {
+		console.log("!pres: " + id)
+		$("#cont_" + id).html(contact_html(user, user.online))
+	}
+
+	function reconnect(host, transport) {
+		conn = new Tinode("AQEAAAABAAEAAFLV81SGyZcs2_Ja2DBGBS22PgFd", host, transport)
+		conn.onConnect = function() {
+			logger("connected")
+		}
+		conn.onMessage = raw_message
+		conn.onCtrlMessage = ctrl_message
+		conn.onDataMessage = cont_message
+		conn.onDisconnect = function() {
+			logger("connection closed")
+		}
+		conn.onPresenceChange = contact_change
+		try {
+			conn.Connect(false)
+		} catch (e) {
+			logger(e)
+		}
+	}
+
+	// Management of the logger window height
+	$('#log').height(function(index, height) {
+		return window.innerHeight - $('#left_controls').height() - 20;
+	});
+	$(window).resize(function() { 
+		$("#log").height(window.innerHeight - $('#left_controls').height() - 20);
+	});
+
+	$('#akn').change(function() {
+		try {
+			if($(this).is(":checked")) {
+				conn.Aknowledge(0xe1ee7) 
+			} else {
+				conn.Aknowledge(0) 
+			}
+		} catch (e) {
+			logger(e)
+		}
+	});
+
+	$("#connect").submit(function() {
+		reconnect($("#addr").val(), $("#transport").val());
+
+		return false;
+	});
+
+	$("#login").submit(function() {
+		try {
+			conn.Login($("#uname").val(), $("#passwd").val())
+		} catch (e) {
+			logger(e)
+		}
+		return false;
+	});
+
+	$('#subs_pres').change(function() {
+		try {
+			if($(this).is(":checked")) {
+				conn.Subscribe("!pres", null) 
+			} else {
+				conn.Unsubscribe("!pres") 
+			}
+		} catch (e) {
+			logger(e)
+		} 
+	});
+
+	$('#subs_me').change(function() {
+		try {
+			if($(this).is(":checked")) {
+				conn.Subscribe("!me", null) 
+			} else {
+				conn.Unsubscribe("!me") 
+			}
+		} catch (e) {
+			logger(e)
+		} 
+	});
+
+	$("#chat").submit(function() {
+		str = msg.val()
+		topic = $("#topic_name").val()
+		where = $("input[name=talkto]:radio:checked").val()
+
+		if (where == "self") {
+			topic = "!me"
+		} else if (!topic) {
+			logger("missing recepient")
+			return false
+		}
+
+		try {
+			conn.Publish(topic, null, str)
+		} catch (e) {
+			logger(e)
+		}
+
+		msg.val("");
+
+		return false
+	});
+
+	// Load contacts of the current user
+	$("#load_contacts").click(function() {
+		contacts.empty()
+		try {
+			conn.LoadContacts(function(count) {
+				if (count > 0) {
+					logger(count + " contacts loaded")
+					conn.IterateContacts(function(user) {
+						contacts.append($("<option />").attr("id", "cont_" + user.contactId)
+							.val(user.contactId)
+							.html(contact_html(user, false))) // &bull;
+					})
+				} else {
+					logger("Zero contacts loaded")
+				}
+			})
+		} catch(e) {
+			logger(e)
+		}
+	})
+
+	$("#set_status").click(function() {
+		status = $("#status").val()
+		if (!status) return
+		try {
+			conn.Publish("!me", {"status": status}, null)
+		} catch (e) {
+			logger(e)
+		}
+	})
+
+	$("#sub_topic").click(function() {
+		name = $("#sub_topic_name").val()
+		if (!name) return
+
+		try {
+			conn.Subscribe(name, null)
+		} catch (e) {
+			logger(e)
+		}
+	})
+
+	$("#unsub_topic").click(function() {
+		name = $("#sub_topic_name").val()
+		if (!name) return
+
+		try {
+			conn.Unsubscribe(name)
+		} catch (e) {
+			logger(e)
+		}
+	})
+
+	$("#contacts").change(function(){
+		$("#contacts option:selected").each(function() {
+			$("#topic_name").val("!usr:" + $(this).val())
+		})
+	})
+
+	$("#addr").val("//"+window.location.host+"/")
+});
+</script>
+<style type="text/css">
+html {
+	overflow: hidden;
+}
+
+body {
+	overflow: hidden;
+	padding: 0;
+	margin: 0;
+	width: 100%;
+	height: 100%;
+	background: #CCC;
+	font-family: monospace;
+}
+
+#log {
+	background: white;
+	border-left: solid 1px #999;
+	border-top: solid 1px #999;
+	border-bottom: solid 1px #CCC;
+	border-right: solid 1px #CCC;
+	margin: 0.25em 0.25em 0.25em 0.25em;
+	padding: 0.5em 0.5em 0.5em 0.5em;
+	top: 0.5em;
+	left: 0.5em;
+	right: 0.5em;
+	bottom: 10em;
+	overflow: auto;
+}
+
+#chat, #connect, #login {
+	padding: 0.05em 0.5em 0.05em 0.05em;
+	margin: 0.05em 0.5em 0.05em 0.05em;
+	left: 0px;
+	overflow: hidden;
+}
+
+#msg {
+	border-left: solid 1px #999;
+	border-top: solid 1px #999;
+	border-bottom: solid 1px #CCC;
+	border-right: solid 1px #CCC;
+}
+
+#panel {
+}
+
+#left_controls {
+	float:left;
+	width:42em;
+	margin-right:0.5em;
+}
+
+#right_controls {
+	margin-right:0.5em;
+}
+
+#contacts {
+	border: solid 1px #999;
+	margin: 0.5em 0.5em 0.5em 0.5em;
+	width:16em;
+	height:18em;
+}
+</style>
+</head>
+<body>
+	<div id="log"></div>
+	<div id="panel">
+		<div id="left_controls">
+			<input type="checkbox" id="raw"><label for="raw">raw log</label>&nbsp;&nbsp; <input type="checkbox" id="akn"><label for="raw">akn packets</label>
+			<hr>
+			<form id="connect" name="connect">
+				Host: <input type="text" id="addr" value="//localhost:18080/" size="24">&nbsp;Transport:
+				<select id="transport">
+						<option value="">
+							default
+						</option>
+						<option value="ws">
+							websocket
+						</option>
+						<option value="lp">
+							long poll
+						</option>
+				</select> <input type="submit" value="Connect">
+				</form>
+				<hr>
+				<form id="login" name="login">
+					User name: <select id="uname">
+						<option>
+							alice
+						</option>
+						<option>
+							bob
+						</option>
+						<option>
+							carol
+						</option>
+						<option>
+							dave
+						</option>
+						<option>
+							eve
+						</option>
+						<option>
+							frank
+						</option>
+				</select> Password: <input type="text" id="passwd" value="ignored" size="12"> <input type="submit" value="Login">
+				</form>
+				<hr>
+				<div>
+					<input type="checkbox" id="subs_me"><label for="subs_me">announce presence</label> &nbsp;&nbsp;Status: <input type="text" id="status" value="" size="12"><button id="set_status">Set</button>
+				</div>
+				<div>
+					<input type="checkbox" id="subs_pres"><label for="subs_pres">receive presence notifications</label>
+				</div>
+				<div>
+					<label for="topic_name">&nbsp;Topic:</label> <input type="text" id="sub_topic_name" value="" size="24"><button id="sub_topic">Sub</button><button id="unsub_topic">Unsub</button>
+				</div>
+				<hr>
+				<form id="chat" name="chat">
+					Send message to:<br>
+					<input type="radio" name="talkto" id="talkto_self" value="self"><label for="talkto_self">self</label><br>
+					<input type="radio" name="talkto" id="talkto_other" value="other"><label for="talkto_other">other user or topic</label> &nbsp;<input type="text" id="topic_name" value="" size="36"><br>
+					<textarea type="text" id="msg" cols="64" rows="7">
+</textarea><br>
+					<input type="submit" value="Send">
+				</form>
+			</div>
+			<div id="right_controls">
+				<div>
+					UID: <span id="uid_disp"></span>
+				</div>
+				<div>
+					Status: <span id="status_disp"></span>
+				</div>
+				<div>
+					Last seen: <span id="last_seen_disp"></span>
+				</div>
+				<div>
+					Contacts:
+				</div><select multiple="multiple" id="contacts">
+					<option>
+						- empty
+					</option>
+				</select><br>
+				<button id="load_contacts">Load</button>
+			</div><br clear="both">
+		</div>
+	</body>
+</html>
