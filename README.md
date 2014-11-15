@@ -1,7 +1,13 @@
-chat
-====
+Tinode chat
+===========
 
 Instant messaging as a service - backend in Go, client-side binding in Java and Javascript
+
+Licenses
+--------
+* Backend is licensed under [GPL v.3](http://www.gnu.org/copyleft/gpl.html)
+* Android and Javascrip bindings are licensed under [Apache 2.0](http://www.apache.org/licenses/LICENSE-2.0.html)
+* Sample web app is in public domain
 
 Dependencies
 ------------
